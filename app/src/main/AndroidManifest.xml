@@ -10,6 +10,7 @@
     <application
         android:name=".DiaryApplication"
         android:allowBackup="true"
+        android:enableOnBackInvokedCallback="false"
         android:icon="@android:drawable/sym_def_app_icon"
         android:label="Ethereal Journal"
         android:supportsRtl="true"
