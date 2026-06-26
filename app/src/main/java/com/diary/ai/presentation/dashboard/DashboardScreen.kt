@@ -1,5 +1,6 @@
 package com.diary.ai.presentation.dashboard
 
+import com.diary.ai.domain.model.User
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

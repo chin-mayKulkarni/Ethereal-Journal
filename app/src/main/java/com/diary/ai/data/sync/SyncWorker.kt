@@ -16,7 +16,7 @@ class SyncWorker(
 ) : CoroutineWorker(context, params) {
 
     private val database: NoteDatabase by lazy {
-        (context.applicationContext as DiaryApplication).database
+        NoteDatabase.getDatabase(applicationContext)
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {

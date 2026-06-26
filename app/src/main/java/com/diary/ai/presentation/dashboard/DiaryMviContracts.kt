@@ -2,12 +2,7 @@ package com.diary.ai.presentation.dashboard
 
 import com.diary.ai.domain.model.Note
 import com.diary.ai.domain.model.AISummary
-
-data class User(
-    val name: String,
-    val email: String,
-    val avatar: String
-)
+import com.diary.ai.domain.model.User
 
 data class DiaryViewState(
     val isLoading: Boolean = false,
