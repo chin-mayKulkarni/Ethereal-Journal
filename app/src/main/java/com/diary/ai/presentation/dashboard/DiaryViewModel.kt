@@ -1,14 +1,14 @@
 package com.diary.ai.presentation.dashboard
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.CreationExtras
+import com.diary.ai.DiaryApplication
 import com.diary.ai.domain.model.MediaType
 import com.diary.ai.domain.model.Note
 import com.diary.ai.domain.model.SyncStatus
-import com.diary.ai.domain.usecase.GenerateDailySummaryUseCase
-import com.diary.ai.domain.usecase.GetNotesByDateUseCase
-import com.diary.ai.domain.usecase.PerformSemanticSearchUseCase
-import com.diary.ai.domain.usecase.SaveNoteUseCase
+import com.diary.ai.domain.usecase.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +21,27 @@ class DiaryViewModel(
     private val getNotesByDateUseCase: GetNotesByDateUseCase,
     private val saveNoteUseCase: SaveNoteUseCase,
     private val generateDailySummaryUseCase: GenerateDailySummaryUseCase,
-    private val performSemanticSearchUseCase: PerformSemanticSearchUseCase
+    private val performSemanticSearchUseCase: PerformSemanticSearchUseCase,
+    private val getActiveUserUseCase: GetActiveUserUseCase,
+    private val signInUseCase: SignInUseCase,
+    private val signOutUseCase: SignOutUseCase
 ) : ViewModel() {
 
     private val _viewState = MutableStateFlow(DiaryViewState())
     val viewState: StateFlow<DiaryViewState> = _viewState.asStateFlow()
     private var notesJob: Job? = null
+
+    init {
+        // Observe active user from domain
+        viewModelScope.launch {
+            getActiveUserUseCase().collect { user ->
+                _viewState.update { it.copy(user = user) }
+                if (user != null) {
+                    processIntent(DiaryUserIntent.LoadNotes(_viewState.value.selectedDate))
+                }
+            }
+        }
+    }
 
     private fun getActiveUserId(): String {
         return _viewState.value.user?.email ?: "guest@ethereal.journal"
@@ -139,13 +154,18 @@ class DiaryViewModel(
                 _viewState.update { it.copy(activeVoiceState = VoiceState.IDLE) }
             }
             is DiaryUserIntent.SignIn -> {
-                _viewState.update { it.copy(user = intent.user, activeTab = "journal") }
-                processIntent(DiaryUserIntent.LoadNotes(_viewState.value.selectedDate))
+                viewModelScope.launch {
+                    signInUseCase(intent.user)
+                    _viewState.update { it.copy(activeTab = "journal") }
+                }
             }
             DiaryUserIntent.SignOut -> {
                 notesJob?.cancel()
-                _viewState.update { 
-                    DiaryViewState() // Reset back to default initial state (user = null)
+                viewModelScope.launch {
+                    signOutUseCase()
+                    _viewState.update { 
+                        DiaryViewState() 
+                    }
                 }
             }
             is DiaryUserIntent.ChangeTab -> {
@@ -173,6 +193,28 @@ class DiaryViewModel(
                     }
                     it.copy(simulatedSleepHours = hrs, simulatedSleepMinutes = mins)
                 }
+            }
+        }
+    }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(
+                modelClass: Class<T>,
+                extras: CreationExtras
+            ): T {
+                val application = checkNotNull(extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]) as DiaryApplication
+                val container = application.container
+                return DiaryViewModel(
+                    container.getNotesByDateUseCase,
+                    container.saveNoteUseCase,
+                    container.generateDailySummaryUseCase,
+                    container.performSemanticSearchUseCase,
+                    container.getActiveUserUseCase,
+                    container.signInUseCase,
+                    container.signOutUseCase
+                ) as T
             }
         }
     }
