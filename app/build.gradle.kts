@@ -13,7 +13,7 @@ android {
     defaultConfig {
         applicationId = "com.diary.ai"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
