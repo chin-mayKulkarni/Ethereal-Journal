@@ -1,26 +1,21 @@
 {
   "project_info": {
-    "project_number": "123456789012",
-    "project_id": "ethereal-journal-placeholder",
-    "storage_bucket": "ethereal-journal-placeholder.appspot.com"
+    "project_number": "802091427032",
+    "project_id": "ethereal-journal-3bdfb",
+    "storage_bucket": "ethereal-journal-3bdfb.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:abcdef123456",
+        "mobilesdk_app_id": "1:802091427032:android:710ebf99e55bea42a963ad",
         "android_client_info": {
           "package_name": "com.diary.ai"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "123456789012-mockclientid.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "mock_api_key_for_compilation"
+          "current_key": "AIzaSyD2_9rfVJkeE1FWr4_Mapd0YVWBowEKa34"
         }
       ],
       "services": {

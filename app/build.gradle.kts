@@ -8,13 +8,13 @@ plugins {
 
 android {
     namespace = "com.diary.ai"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.diary.ai"
         minSdk = 26
-        targetSdk = 37
-        versionCode = 1
+        targetSdk = 35
+        versionCode = 2
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -77,8 +77,12 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.googleid)
+
+    // Firebase
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
+    implementation("com.google.firebase:firebase-analytics")
 
     // AI & Ingestion
     implementation(libs.google.mlkit.text.recognition)
@@ -88,7 +92,6 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.google.gemini.client)
     implementation(libs.coil.compose)
-
 
     // Kotlinx Serialization JSON library
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
