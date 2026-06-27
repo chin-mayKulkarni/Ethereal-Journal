@@ -8,3 +8,4 @@ coverage/
 !.env.example
 *.lock
 *.bin
+app/google-services.json
