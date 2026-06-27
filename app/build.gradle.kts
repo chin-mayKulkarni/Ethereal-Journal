@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.diary.ai"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.diary.ai"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 2
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
