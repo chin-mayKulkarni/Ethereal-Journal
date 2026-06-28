@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.USE_LOOPBACK_INTERFACE" />
 
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application

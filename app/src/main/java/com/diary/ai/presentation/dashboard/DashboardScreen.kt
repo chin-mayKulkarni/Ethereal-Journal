@@ -38,6 +38,14 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalContext
 import com.diary.ai.presentation.auth.AuthenticationManager
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.speech.SpeechRecognizer
+import com.diary.ai.presentation.ingestion.VoiceDictationEngine
 
 
 
@@ -722,8 +730,91 @@ fun JournalTabView(
     var isRecording by remember { mutableStateOf(false) }
     var voiceTimer by remember { mutableStateOf(0) }
     var newText by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+
+    val speechEngine = remember {
+        VoiceDictationEngine(
+            context = context,
+            onTextReceived = { text ->
+                newText = text
+            },
+            onErrorReceived = { error ->
+                isRecording = false
+                val errorMsg = when (error) {
+                    SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                    SpeechRecognizer.ERROR_CLIENT -> "Client-side error"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Permission required for speech recognition"
+                    SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout"
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No match found"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Recognition service busy"
+                    SpeechRecognizer.ERROR_SERVER -> "Server error"
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech input detected"
+                    else -> "Speech recognition error: $error"
+                }
+                if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                    Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            speechEngine.destroy()
+        }
+    }
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                isVoiceActive = true
+                isRecording = true
+                newText = ""
+                speechEngine.startListening()
+            } else {
+                Toast.makeText(context, "Speech recognition is not available on this device", Toast.LENGTH_LONG).show()
+                isVoiceActive = false
+                isRecording = false
+            }
+        } else {
+            Toast.makeText(context, "Microphone permission is required for voice entry", Toast.LENGTH_SHORT).show()
+            isVoiceActive = false
+            isRecording = false
+        }
+    }
+
+    val startRecording = {
+        val hasPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasPermission) {
+            if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                isVoiceActive = true
+                isRecording = true
+                newText = ""
+                speechEngine.startListening()
+            } else {
+                Toast.makeText(context, "Speech recognition is not available on this device", Toast.LENGTH_LONG).show()
+                isVoiceActive = false
+                isRecording = false
+            }
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val stopRecording = {
+        isRecording = false
+        speechEngine.stopListening()
+    }
     
-    // Timer effect for voice simulation
+    // Timer effect for voice recording
     LaunchedEffect(isRecording) {
         if (isRecording) {
             while (true) {
@@ -739,18 +830,6 @@ fun JournalTabView(
         val m = (voiceTimer / 60).toString().padStart(2, '0')
         val s = (voiceTimer % 60).toString().padStart(2, '0')
         "$m:$s"
-    }
-
-    val stopRecording = {
-        isRecording = false
-        val voiceTranscripts = mapOf(
-            "Focused" to "Thinking about the architecture proposal. I need to make sure the server-side API routes are perfectly isolated and secure, keeping all keys hidden from client exposure. Today's sessions went exceptionally well.",
-            "Reflective" to "Reflecting on the recent group meeting. Navigated several highly complex interpersonal loops with key project stake-holders. Dialogue felt open and deeply aligned.",
-            "Anxious" to "A bit worried about the timing of tomorrow's release. I should probably review the rendering layout in the morning to make sure there are no clipping anomalies.",
-            "Grateful" to "Extremely appreciative of the quick response from chinmayrk01. The collaborative feedback loop was outstandingly warm and professional.",
-            "Neutral" to "Just registering a standard mid-day alignment. All indicators are green and operational."
-        )
-        newText = voiceTranscripts[state.selectedMood] ?: "Spoken reflection compiled successfully."
     }
 
     LazyColumn(
@@ -801,11 +880,12 @@ fun JournalTabView(
                         // Voice Entry Switcher button
                         Button(
                             onClick = {
-                                isVoiceActive = !isVoiceActive
                                 if (!isVoiceActive) {
-                                    isRecording = false
+                                    startRecording()
+                                } else {
+                                    isVoiceActive = false
+                                    stopRecording()
                                 }
-                                newText = ""
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isVoiceActive) Color(0xFFF43F5E) else Color(0xFFF1F5F9),
@@ -829,132 +909,36 @@ fun JournalTabView(
                         }
                     }
 
-                    if (!isVoiceActive) {
-                        // Traditional Text Area Input
-                        OutlinedTextField(
-                            value = newText,
-                            onValueChange = { newText = it },
-                            placeholder = { Text("What is occupying your thoughts today?", color = Color(0xFF94A3B8), fontSize = 14.sp) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(100.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFFFDA4AF), // rose-300
-                                unfocusedBorderColor = Color(0xFFF1F5F9),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color(0xFFFAFAFA)
-                            )
+                    // Traditional Text Area Input (always visible so transcribed text populates it)
+                    OutlinedTextField(
+                        value = newText,
+                        onValueChange = { newText = it },
+                        placeholder = { Text(if (isVoiceActive) "Dictating your thoughts..." else "What is occupying your thoughts today?", color = Color(0xFF94A3B8), fontSize = 14.sp) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFFFDA4AF), // rose-300
+                            unfocusedBorderColor = Color(0xFFF1F5F9),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color(0xFFFAFAFA)
                         )
+                    )
 
-                        // Mood Selector
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(
-                                text = "CURRENT MOOD",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF94A3B8),
-                                letterSpacing = 1.sp
-                            )
-
-                            // Mood custom row
-                            val moodsList = listOf(
-                                Triple("Focused", Icons.Default.Edit, Color(0xFFEFF6FF) to Color(0xFF1D4ED8)),
-                                Triple("Reflective", Icons.Default.Face, Color(0xFFEEF2FF) to Color(0xFF4338CA)),
-                                Triple("Anxious", Icons.Default.Warning, Color(0xFFFFFBEB) to Color(0xFFB45309)),
-                                Triple("Grateful", Icons.Default.Favorite, Color(0xFFFFF1F2) to Color(0xFFBE123C)),
-                                Triple("Neutral", Icons.Default.Info, Color(0xFFF8FAFC) to Color(0xFF475569))
-                            )
-
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(moodsList) { (mName, mIcon, colors) ->
-                                    val isSel = state.selectedMood == mName
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(CircleShape)
-                                            .background(if (isSel) colors.first else Color.White)
-                                            .border(
-                                                width = 1.dp,
-                                                color = if (isSel) colors.second else Color(0xFFE2E8F0),
-                                                shape = CircleShape
-                                            )
-                                            .clickable { onIntent(DiaryUserIntent.SelectMood(mName)) }
-                                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = mIcon,
-                                                contentDescription = mName,
-                                                tint = if (isSel) colors.second else Color(0xFF64748B),
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                            Text(
-                                                text = mName,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (isSel) colors.second else Color(0xFF64748B)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Save reflection button
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            Button(
-                                onClick = {
-                                    if (newText.isNotBlank()) {
-                                        onIntent(DiaryUserIntent.SaveTextNote(newText, state.selectedMood))
-                                        newText = ""
-                                    }
-                                },
-                                enabled = newText.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.Transparent,
-                                    disabledContainerColor = Color(0xFFE2E8F0)
-                                ),
-                                shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier
-                                    .height(36.dp)
-                                    .background(
-                                        if (newText.isNotBlank()) {
-                                            Brush.linearGradient(colors = listOf(Color(0xFF6366F1), Color(0xFFEC4899)))
-                                        } else {
-                                            Brush.linearGradient(colors = listOf(Color.Transparent, Color.Transparent))
-                                        },
-                                        shape = RoundedCornerShape(20.dp)
-                                    ),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                    Text("Save Entry", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                }
-                            }
-                        }
-                    } else {
-                        // Voice Recording Dictation simulation view
+                    if (isVoiceActive) {
+                        // Voice Recording Dictation controls
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 12.dp),
+                                .padding(vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             if (isRecording) {
                                 // Waveform animation representation
                                 Row(
-                                    modifier = Modifier.height(40.dp),
+                                    modifier = Modifier.height(32.dp),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -972,13 +956,13 @@ fun JournalTabView(
                                 Text(
                                     text = formatTimer(),
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.sp,
                                     color = Color(0xFF1E293B)
                                 )
 
                                 Box(
                                     modifier = Modifier
-                                        .size(54.dp)
+                                        .size(48.dp)
                                         .clip(CircleShape)
                                         .background(Color(0xFFEF4444))
                                         .clickable { stopRecording() },
@@ -988,7 +972,7 @@ fun JournalTabView(
                                         imageVector = Icons.Default.Close,
                                         contentDescription = "Stop Recording",
                                         tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
 
@@ -1002,84 +986,139 @@ fun JournalTabView(
                             } else {
                                 Box(
                                     modifier = Modifier
-                                        .size(54.dp)
+                                        .size(48.dp)
                                         .clip(CircleShape)
                                         .background(
                                             Brush.linearGradient(
                                                 colors = listOf(Color(0xFF6366F1), Color(0xFFEC4899))
                                             )
                                         )
-                                        .clickable { isRecording = true },
+                                        .clickable { startRecording() },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.PlayArrow,
                                         contentDescription = "Start Recording",
                                         tint = Color.White,
-                                        modifier = Modifier.size(24.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
 
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     Text(
-                                        text = "Tap to dictate your diary",
+                                        text = "Tap button to record reflection",
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 13.sp,
+                                        fontSize = 12.sp,
                                         color = Color(0xFF1E293B)
                                     )
                                     Text(
-                                        text = "USING SOPHISTICATED VOICE ENGINE",
+                                        text = "USING ACTIVE VOICE ENGINE",
                                         fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color(0xFF94A3B8),
                                         letterSpacing = 1.sp
                                     )
                                 }
+                            }
+                        }
+                    }
 
-                                if (newText.isNotEmpty()) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
-                                            .border(1.dp, Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
-                                            .padding(12.dp)
+                    // Mood Selector (always visible)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "CURRENT MOOD",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF94A3B8),
+                            letterSpacing = 1.sp
+                        )
+
+                        // Mood custom row
+                        val moodsList = listOf(
+                            Triple("Focused", Icons.Default.Edit, Color(0xFFEFF6FF) to Color(0xFF1D4ED8)),
+                            Triple("Reflective", Icons.Default.Face, Color(0xFFEEF2FF) to Color(0xFF4338CA)),
+                            Triple("Anxious", Icons.Default.Warning, Color(0xFFFFFBEB) to Color(0xFFB45309)),
+                            Triple("Grateful", Icons.Default.Favorite, Color(0xFFFFF1F2) to Color(0xFFBE123C)),
+                            Triple("Neutral", Icons.Default.Info, Color(0xFFF8FAFC) to Color(0xFF475569))
+                        )
+
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(moodsList) { (mName, mIcon, colors) ->
+                                val isSel = state.selectedMood == mName
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(if (isSel) colors.first else Color.White)
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSel) colors.second else Color(0xFFE2E8F0),
+                                            shape = CircleShape
+                                        )
+                                        .clickable { onIntent(DiaryUserIntent.SelectMood(mName)) }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
+                                        Icon(
+                                            imageVector = mIcon,
+                                            contentDescription = mName,
+                                            tint = if (isSel) colors.second else Color(0xFF64748B),
+                                            modifier = Modifier.size(12.dp)
+                                        )
                                         Text(
-                                            text = "\"$newText\"",
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Color(0xFF475569)
+                                            text = mName,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isSel) colors.second else Color(0xFF64748B)
                                         )
                                     }
-
-                                    Button(
-                                        onClick = {
-                                            if (newText.isNotBlank()) {
-                                                onIntent(DiaryUserIntent.SaveTextNote(newText, state.selectedMood))
-                                                newText = ""
-                                                isVoiceActive = false
-                                            }
-                                        },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color.Transparent
-                                        ),
-                                        shape = RoundedCornerShape(20.dp),
-                                        modifier = Modifier
-                                            .height(36.dp)
-                                            .background(
-                                                Brush.linearGradient(
-                                                    colors = listOf(Color(0xFF6366F1), Color(0xFFEC4899))
-                                                ),
-                                                shape = RoundedCornerShape(20.dp)
-                                            ),
-                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
-                                    ) {
-                                        Text("Use Transcript", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    }
                                 }
+                            }
+                        }
+                    }
+
+                    // Save reflection button (always visible)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Button(
+                            onClick = {
+                                if (newText.isNotBlank()) {
+                                    onIntent(DiaryUserIntent.SaveTextNote(newText, state.selectedMood))
+                                    newText = ""
+                                    isVoiceActive = false
+                                }
+                            },
+                            enabled = newText.isNotBlank() && !isRecording,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Transparent,
+                                disabledContainerColor = Color(0xFFE2E8F0)
+                            ),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier
+                                .height(36.dp)
+                                .background(
+                                    if (newText.isNotBlank() && !isRecording) {
+                                        Brush.linearGradient(colors = listOf(Color(0xFF6366F1), Color(0xFFEC4899)))
+                                    } else {
+                                        Brush.linearGradient(colors = listOf(Color.Transparent, Color.Transparent))
+                                    },
+                                    shape = RoundedCornerShape(20.dp)
+                                ),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Text("Save Entry", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             }
                         }
                     }
