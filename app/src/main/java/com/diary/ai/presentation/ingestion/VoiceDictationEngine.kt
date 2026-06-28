@@ -7,7 +7,11 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 
-class VoiceDictationEngine(context: Context, private val onTextReceived: (String) -> Unit) {
+class VoiceDictationEngine(
+    context: Context,
+    private val onTextReceived: (String) -> Unit,
+    private val onErrorReceived: (Int) -> Unit = {}
+) {
     private val speechRecognizer: SpeechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
     private val recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -21,7 +25,9 @@ class VoiceDictationEngine(context: Context, private val onTextReceived: (String
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
-            override fun onError(error: Int) {}
+            override fun onError(error: Int) {
+                onErrorReceived(error)
+            }
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 matches?.firstOrNull()?.let { onTextReceived(it) }
