@@ -36,6 +36,8 @@ import com.diary.ai.domain.model.SyncStatus
 import com.diary.ai.domain.model.AISummary
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import androidx.compose.ui.platform.LocalContext
+import com.diary.ai.presentation.auth.AuthenticationManager
 
 
 
@@ -52,6 +54,10 @@ fun DashboardScreen(
     
     var textNoteContent by remember { mutableStateOf("") }
     var searchPrompt by remember { mutableStateOf("") }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val authManager = remember { AuthenticationManager(context) }
 
     val user = state.user ?: User("Guest", "guest@ethereal.journal", "")
 
@@ -614,7 +620,9 @@ fun DashboardScreen(
                         Button(
                             onClick = {
                                 showSettingsModal = false
-                                onIntent(DiaryUserIntent.SignOut)
+                                authManager.signOutUser(coroutineScope) {
+                                    onIntent(DiaryUserIntent.SignOut)
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFFEF2F2),
@@ -638,7 +646,9 @@ fun DashboardScreen(
                         Button(
                             onClick = {
                                 showSettingsModal = false
-                                onIntent(DiaryUserIntent.SignOut)
+                                authManager.signOutUser(coroutineScope) {
+                                    onIntent(DiaryUserIntent.SignOut)
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFFF1F5F9),
