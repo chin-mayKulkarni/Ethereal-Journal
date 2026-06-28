@@ -30,6 +30,9 @@ import androidx.compose.ui.window.Dialog
 import com.diary.ai.domain.model.User
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import com.google.firebase.auth.FirebaseAuth
 
 
 @OptIn(ExperimentalAnimationApi::class)
@@ -38,6 +41,10 @@ fun OnboardingScreen(
     onSignIn: (User) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val authManager = remember { AuthenticationManager(context) }
+
     val taglines = listOf("Write your mind.", "Speak your day.", "Scan your journal.")
     var taglineIndex by remember { mutableStateOf(0) }
     var showAccountSelector by remember { mutableStateOf(false) }
@@ -191,7 +198,28 @@ fun OnboardingScreen(
             ) {
                 // Sign In with Google Button
                 Button(
-                    onClick = { showAccountSelector = true },
+                    onClick = {
+                        authManager.performGoogleSignIn(coroutineScope) { success, error ->
+                            if (success) {
+                                val firebaseUser = FirebaseAuth.getInstance().currentUser
+                                if (firebaseUser != null) {
+                                    onSignIn(
+                                        User(
+                                            name = firebaseUser.displayName ?: "Google User",
+                                            email = firebaseUser.email ?: "",
+                                            avatar = firebaseUser.photoUrl?.toString() ?: ""
+                                        )
+                                    )
+                                } else {
+                                    Toast.makeText(context, "Firebase user state is null", Toast.LENGTH_SHORT).show()
+                                    showAccountSelector = true
+                                }
+                            } else {
+                                Toast.makeText(context, "Sign-In: $error. Opening simulator...", Toast.LENGTH_LONG).show()
+                                showAccountSelector = true
+                            }
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
