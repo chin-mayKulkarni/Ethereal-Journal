@@ -3,11 +3,12 @@ package com.diary.ai.presentation.dashboard
 import com.diary.ai.domain.model.Note
 import com.diary.ai.domain.model.AISummary
 import com.diary.ai.domain.model.User
+import java.time.LocalDate
 
 data class DiaryViewState(
     val isLoading: Boolean = false,
     val user: User? = null,
-    val selectedDate: String = "2026-06-25",
+    val selectedDate: String = LocalDate.now().toString(),
     val notes: List<Note> = emptyList(),
     val summary: AISummary? = null,
     val isSummaryLoading: Boolean = false,

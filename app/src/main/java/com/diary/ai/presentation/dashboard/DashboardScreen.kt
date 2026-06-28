@@ -2086,21 +2086,68 @@ fun SummaryTabView(
 }
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarStrip(
     selectedDate: String,
     onDateSelected: (String) -> Unit
 ) {
-    // Days mapping for June 22 - June 28, 2026
-    val daysList = listOf(
-        Triple("Mon", "22", "2026-06-22"),
-        Triple("Tue", "23", "2026-06-23"),
-        Triple("Wed", "24", "2026-06-24"),
-        Triple("Thu", "25", "2026-06-25"),
-        Triple("Fri", "26", "2026-06-26"),
-        Triple("Sat", "27", "2026-06-27"),
-        Triple("Sun", "28", "2026-06-28")
-    )
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val localDate = try {
+        java.time.LocalDate.parse(selectedDate)
+    } catch (e: Exception) {
+        java.time.LocalDate.now()
+    }
+
+    // Find the Monday of the week containing localDate
+    val monday = localDate.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+    val daysList = (0..6).map { i ->
+        val date = monday.plusDays(i.toLong())
+        val dayName = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.US)
+        val dayOfMonth = date.dayOfMonth.toString()
+        val fullDate = date.toString()
+        Triple(dayName, dayOfMonth, fullDate)
+    }
+
+    val monthFormatter = java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy", java.util.Locale.US)
+    val monthText = localDate.format(monthFormatter)
+
+    val weekFields = java.time.temporal.WeekFields.of(java.util.Locale.getDefault())
+    val weekNum = localDate.get(weekFields.weekOfWeekBasedYear())
+    val weekText = "Week $weekNum"
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = localDate.atStartOfDay(java.time.ZoneId.of("UTC")).toInstant().toEpochMilli()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            val selected = java.time.Instant.ofEpochMilli(millis)
+                                .atZone(java.time.ZoneId.of("UTC"))
+                                .toLocalDate()
+                                .toString()
+                            onDateSelected(selected)
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2117,18 +2164,33 @@ fun CalendarStrip(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "June 2026",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B)
-                )
-                Text(
-                    text = "Week 26",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color(0xFF94A3B8)
-                )
+                Column {
+                    Text(
+                        text = monthText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E293B)
+                    )
+                    Text(
+                        text = weekText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+
+                // Calendar Picker Trigger Button
+                IconButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = "Choose Date",
+                        tint = Color(0xFF6366F1),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Row(
