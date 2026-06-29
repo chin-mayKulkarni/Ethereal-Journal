@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.diary.ai.DiaryApplication
 import com.diary.ai.presentation.auth.SplashScreen
 import com.diary.ai.presentation.dashboard.DashboardScreen
 import com.diary.ai.presentation.dashboard.DiaryViewModel
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
                         val user = state.value.user
                         if (user == null) {
                             com.diary.ai.presentation.auth.OnboardingScreen(
+                                syncScheduler = (application as DiaryApplication).container.syncScheduler,
                                 onSignIn = { signedInUser ->
                                     viewModel.processIntent(DiaryUserIntent.SignIn(signedInUser))
                                 }

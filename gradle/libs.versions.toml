@@ -14,6 +14,10 @@ kotlin = "2.1.10"
 googleServices = "4.4.1"
 coil = "2.5.0"
 ksp = "2.1.10-1.0.29"
+playServicesAuth = "21.2.0"
+googleApiClient = "2.2.0"
+googleApiServicesDrive = "v3-rev20220815-2.0.0"
+googleHttpClient = "1.43.3"
 
 
 [libraries]
@@ -46,6 +50,12 @@ androidx-camera-view = { group = "androidx.camera", name = "camera-view", versio
 google-gemini-client = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "gemini" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
+# Google Drive API
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClient" }
+google-apis-drive = { group = "com.google.apis", name = "google-api-services-drive", version.ref = "googleApiServicesDrive" }
+google-http-client-gson = { group = "com.google.http-client", name = "google-http-client-gson", version.ref = "googleHttpClient" }
+
 
 # Testing dependencies
 junit = { group = "junit", name = "junit", version = "4.13.2" }
@@ -57,4 +67,5 @@ android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }

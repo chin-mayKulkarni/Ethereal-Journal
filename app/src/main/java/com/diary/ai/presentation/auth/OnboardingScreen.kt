@@ -31,6 +31,7 @@ import com.diary.ai.domain.model.User
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
 import android.widget.Toast
 import com.google.firebase.auth.FirebaseAuth
 
@@ -39,9 +40,11 @@ import com.google.firebase.auth.FirebaseAuth
 @Composable
 fun OnboardingScreen(
     onSignIn: (User) -> Unit,
+    syncScheduler: com.diary.ai.domain.repository.SyncScheduler,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val activity = context as Activity
     val coroutineScope = rememberCoroutineScope()
     val authManager = remember { AuthenticationManager(context) }
 
@@ -199,10 +202,14 @@ fun OnboardingScreen(
                 // Sign In with Google Button
                 Button(
                     onClick = {
-                        authManager.performGoogleSignIn(coroutineScope) { success, error ->
+                        authManager.performGoogleSignIn(coroutineScope, activity) { success, error ->
                             if (success) {
                                 val firebaseUser = FirebaseAuth.getInstance().currentUser
                                 if (firebaseUser != null) {
+                                    // Immediately pull all cloud data before navigating to the
+                                    // dashboard. This ensures a second device sees all entries
+                                    // from other devices within seconds of login, not 15 minutes.
+                                    syncScheduler.scheduleImmediateSync()
                                     onSignIn(
                                         User(
                                             name = firebaseUser.displayName ?: "Google User",

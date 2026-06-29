@@ -5,6 +5,8 @@ import com.diary.ai.data.ai.GeminiClient
 import com.diary.ai.data.local.NoteDatabase
 import com.diary.ai.data.repository.AuthRepositoryImpl
 import com.diary.ai.data.repository.DiaryRepositoryImpl
+import com.diary.ai.data.sync.DriveAuthProvider
+import com.diary.ai.data.sync.GoogleDriveService
 import com.diary.ai.data.sync.SyncSchedulerImpl
 import com.diary.ai.domain.repository.AuthRepository
 import com.diary.ai.domain.repository.DiaryRepository
@@ -15,12 +17,16 @@ interface AppContainer {
     val diaryRepository: DiaryRepository
     val authRepository: AuthRepository
     val syncScheduler: SyncScheduler
-    
+
+    // Drive sync components
+    val driveAuthProvider: DriveAuthProvider
+    val googleDriveService: GoogleDriveService
+
     val getNotesByDateUseCase: GetNotesByDateUseCase
     val saveNoteUseCase: SaveNoteUseCase
     val generateDailySummaryUseCase: GenerateDailySummaryUseCase
     val performSemanticSearchUseCase: PerformSemanticSearchUseCase
-    
+
     val getActiveUserUseCase: GetActiveUserUseCase
     val signInUseCase: SignInUseCase
     val signOutUseCase: SignOutUseCase
@@ -47,6 +53,28 @@ class AppContainerImpl(private val context: Context) : AppContainer {
     override val syncScheduler: SyncScheduler by lazy {
         SyncSchedulerImpl(context)
     }
+
+    // ── Drive sync components ─────────────────────────────────────────────────
+
+    /**
+     * Manages the Drive-scoped OAuth2 access token lifecycle.
+     * Shared by [googleDriveService] — single instance ensures the token
+     * cache is not duplicated across callers.
+     */
+    override val driveAuthProvider: DriveAuthProvider by lazy {
+        DriveAuthProvider(context)
+    }
+
+    /**
+     * Concrete implementation of GoogleDriveGateway backed by the Drive v3 API.
+     * This is the instance that must be set on [GoogleDriveGatewayHolder] in
+     * DiaryApplication.onCreate() so that SyncWorker can resolve it.
+     */
+    override val googleDriveService: GoogleDriveService by lazy {
+        GoogleDriveService(context, driveAuthProvider)
+    }
+
+    // ── Use Cases ─────────────────────────────────────────────────────────────
 
     override val getNotesByDateUseCase: GetNotesByDateUseCase by lazy {
         GetNotesByDateUseCase(diaryRepository)
