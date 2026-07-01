@@ -2,15 +2,12 @@ package com.diary.ai.data.sync
 
 import android.content.Context
 import android.util.Log
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
 import com.google.api.client.http.ByteArrayContent
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
-import com.google.api.services.drive.DriveScopes
 import com.google.api.services.drive.model.File
 import com.google.api.services.drive.model.FileList
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -44,31 +41,32 @@ class GoogleDriveService(
     // ── Drive client builder ──────────────────────────────────────────────────
 
     /**
-     * Builds a Drive client authenticated with the current Google account's
-     * access token. Called fresh before each API call to ensure the token
+     * Builds a Drive client authenticated with the access token obtained from
+     * [DriveAuthProvider]. Called fresh before each API call to ensure the token
      * is always current (DriveAuthProvider handles caching/refresh).
      *
-     * @return Authenticated Drive v3 client, or null if no account is signed in.
+     * NOTE: This intentionally does NOT use the legacy GoogleSignIn API.
+     * The app authenticates via Credential Manager, which does not populate
+     * GoogleSignIn.getLastSignedInAccount(). Instead, DriveAuthProvider obtains
+     * an OAuth2 access token via the Identity Authorization API and we inject
+     * it into HTTP request headers directly.
+     *
+     * @return Authenticated Drive v3 client.
+     * @throws IllegalStateException if the user is not signed in or the token
+     *         cannot be obtained.
      */
-    private suspend fun buildDriveClient(): Drive? {
-        val account = GoogleSignIn.getLastSignedInAccount(context)
-            ?: run {
-                Log.w(TAG, "No signed-in Google account — cannot build Drive client")
-                return null
-            }
-
-        val credential = GoogleAccountCredential.usingOAuth2(
-            context,
-            listOf(DriveScopes.DRIVE_APPDATA)
-        ).apply {
-            selectedAccount = account.account
-        }
+    private suspend fun buildDriveClient(): Drive {
+        val accessToken = driveAuthProvider.getValidAccessToken()
+            ?: throw IllegalStateException(
+                "Cannot obtain Drive access token — user not signed in or Drive scope not granted"
+            )
 
         return Drive.Builder(
             NetHttpTransport(),
-            GsonFactory.getDefaultInstance(),
-            credential
-        )
+            GsonFactory.getDefaultInstance()
+        ) { request ->
+            request.headers.authorization = "Bearer $accessToken"
+        }
             .setApplicationName("EtherealJournal")
             .build()
     }
@@ -84,7 +82,7 @@ class GoogleDriveService(
      */
     override suspend fun getFileMetadata(fileName: String): DriveFileMetadata? =
         withContext(Dispatchers.IO) {
-            val drive = buildDriveClient() ?: return@withContext null
+            val drive = buildDriveClient()
 
             try {
                 val fileList: FileList = drive.files().list()
@@ -123,9 +121,9 @@ class GoogleDriveService(
      *
      * This avoids duplicate files accumulating for the same date.
      */
-    override suspend fun uploadDayFile(fileName: String, jsonContent: String) =
+    override suspend fun uploadDayFile(fileName: String, jsonContent: String) {
         withContext(Dispatchers.IO) {
-            val drive = buildDriveClient() ?: return@withContext
+            val drive = buildDriveClient()
 
             val contentBytes = jsonContent.toByteArray(Charsets.UTF_8)
             val mediaContent = ByteArrayContent(MIME_JSON, contentBytes)
@@ -155,6 +153,7 @@ class GoogleDriveService(
                 throw e
             }
         }
+    }
 
     /**
      * Downloads and returns the raw JSON content of the Drive file named [fileName].
@@ -197,7 +196,7 @@ class GoogleDriveService(
      */
     override suspend fun listAllDayFiles(): List<DriveFileMetadata> =
         withContext(Dispatchers.IO) {
-            val drive = buildDriveClient() ?: return@withContext emptyList()
+            val drive = buildDriveClient()
 
             val results = mutableListOf<DriveFileMetadata>()
             var pageToken: String? = null

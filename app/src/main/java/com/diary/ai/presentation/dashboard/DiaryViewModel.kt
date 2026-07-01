@@ -44,7 +44,8 @@ class DiaryViewModel(
     }
 
     private fun getActiveUserId(): String {
-        return _viewState.value.user?.email ?: "guest@ethereal.journal"
+        return com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid
+            ?: _viewState.value.user?.email ?: "guest@ethereal.journal"
     }
 
     fun processIntent(intent: DiaryUserIntent) {

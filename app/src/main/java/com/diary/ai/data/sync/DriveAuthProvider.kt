@@ -2,8 +2,8 @@ package com.diary.ai.data.sync
 
 import android.content.Context
 import android.util.Log
+import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.Identity
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.Scope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -48,6 +48,10 @@ class DriveAuthProvider(private val context: Context) {
      * This method is safe to call from a coroutine on any dispatcher —
      * the actual authorization task is dispatched to [Dispatchers.IO].
      *
+     * NOTE: This uses the Identity Authorization API directly, which works
+     * with both Credential Manager and legacy GoogleSignIn flows. It does NOT
+     * depend on GoogleSignIn.getLastSignedInAccount().
+     *
      * @return A valid OAuth2 access token string, or null if the user is not
      *         signed in with a Google account that has granted Drive access.
      * @throws Exception if the token refresh fails (caller should handle/retry).
@@ -62,27 +66,14 @@ class DriveAuthProvider(private val context: Context) {
             return@withContext cached
         }
 
-        // Try to obtain a fresh token from the last signed-in Google account.
+        // Use the Identity Authorization API to obtain/refresh the token.
+        // This works regardless of whether the user signed in via Credential
+        // Manager or the legacy GoogleSignIn API, as long as the drive.appdata
+        // scope was granted during sign-in.
         return@withContext try {
-            val account = GoogleSignIn.getLastSignedInAccount(context)
-            if (account == null) {
-                Log.w(TAG, "No signed-in Google account found — cannot get Drive token")
-                return@withContext null
-            }
-
-            // Check if the Drive scope is already authorized for this account.
             val driveScope = Scope(DRIVE_APPDATA_SCOPE)
-            if (!GoogleSignIn.hasPermissions(account, driveScope)) {
-                // The user hasn't granted Drive access yet.
-                // AuthenticationManager.requestDriveAuthorization() must be
-                // called from the UI layer first (requires Activity context).
-                Log.w(TAG, "Drive appdata scope not yet authorized for this account")
-                return@withContext null
-            }
 
-            // Use Identity Authorization API to silently refresh the token.
-            // This works because the user already granted the scope interactively.
-            val authorizationRequest = com.google.android.gms.auth.api.identity.AuthorizationRequest
+            val authorizationRequest = AuthorizationRequest
                 .builder()
                 .setRequestedScopes(listOf(driveScope))
                 .build()
@@ -97,6 +88,8 @@ class DriveAuthProvider(private val context: Context) {
                 cachedToken = token
                 tokenExpiryMs = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1)
                 Log.i(TAG, "Drive access token refreshed successfully")
+            } else {
+                Log.w(TAG, "Identity Authorization API returned null access token — Drive scope may not be granted")
             }
             token
         } catch (e: Exception) {

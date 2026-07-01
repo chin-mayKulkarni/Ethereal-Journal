@@ -192,6 +192,9 @@ class SyncWorker(
                 }
             )
             val jsonContent: String = json.encodeToString(payload)
+            
+            val currentTime = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+            Log.i(TAG, "[$currentTime] OPERATION: WRITE. File: $fileName. Data written to Google Drive: $jsonContent")
 
             // Step A6: Upload to Drive — creates the file if absent, overwrites
             //          it if present. Drive handles deduplication via fileId.
@@ -255,6 +258,9 @@ class SyncWorker(
 
             // Step B3: Download the full JSON file content from Drive.
             val rawJson: String = driveGateway.downloadDayFile(cloudMeta.fileName)
+            
+            val currentTime = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.getDefault()).format(java.util.Date())
+            Log.i(TAG, "[$currentTime] OPERATION: READ. File: ${cloudMeta.fileName}. Data received from Google Drive: $rawJson")
 
             // Step B4: Deserialize into our DTO.
             val payload: DailyFilePayload = json.decodeFromString(rawJson)
